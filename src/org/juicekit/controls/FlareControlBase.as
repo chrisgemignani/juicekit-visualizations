@@ -14,41 +14,24 @@
  * limitations under the License.
  */
 
-package org.juicekit.charts {
+
+package org.juicekit.controls {
 import flare.display.DirtySprite;
 import flare.vis.Visualization;
-import flare.vis.controls.Control;
-import flare.vis.data.Data;
 import flare.vis.data.DataSprite;
-import flare.vis.data.NodeSprite;
-import flare.vis.events.DataEvent;
-import flare.vis.operator.Operator;
 
 import flash.display.Graphics;
-import flash.events.Event;
 import flash.events.MouseEvent;
 import flash.geom.Rectangle;
 
-import mx.binding.utils.ChangeWatcher;
-import mx.collections.ArrayCollection;
-import mx.core.UIComponent;
-import mx.events.PropertyChangeEvent;
 import mx.events.ResizeEvent;
 import mx.styles.StyleManager;
 
 import org.juicekit.animate.TransitionEvent;
 import org.juicekit.animate.Transitioner;
-import org.juicekit.collections.JKArrayCollection;
 import org.juicekit.events.DataMouseEvent;
-import org.juicekit.util.Property;
+import org.juicekit.renderers.RendererBase;
 import org.juicekit.util.helper.CSSUtil;
-
-/**
- * Dispatched when data has been updated in the Visualization.
- *
- * @eventType flash.event.Event
- */
-[Event(name="dataUpdate", type="flash.events.Event")]
 
 /**
  * Dispatched when the user clicks a mouse on a
@@ -106,60 +89,25 @@ import org.juicekit.util.helper.CSSUtil;
  */
 [Style(name="backgroundColor", type="uint", format="Color", inherit="no")]
 
-
-/*--- PADDING STYLES --*/
-
-/**
- * Number of pixels between the component's left border
- * and the left edge of its content area.
- *
- * @default 0
- */
-[Style(name="paddingLeft", type="Number", format="Length", inherit="no")]
-
-/**
- * Number of pixels between the component's right border
- * and the right edge of its content area.
- *
- * @default 0
- */
-[Style(name="paddingRight", type="Number", format="Length", inherit="no")]
-
-/**
- * Number of pixels between the component's bottom border
- * and the bottom edge of its content area.
- *
- * @default 0
- */
-[Style(name="paddingBottom", type="Number", format="Length", inherit="no")]
-
-/**
- * Number of pixels between the component's top border
- * and the top edge of its content area.
- *
- * @default 0
- */
-[Style(name="paddingTop", type="Number", format="Length", inherit="no")]
+include "../../../../shared/styles/metadata/PaddingStyles.as";
 
 
 /**
- * The class <code>FlareVisBase</code> provides a common implementation
- * for visual controls based upon the prefure.flare <code>Visualization</code>.
+ * The class <code>FlareControlBase</code> provides a common implementation
+ * for visual controls based upon the Flare <code>Visualization</code>.
  * The class is only intended to be used as a base implementation
  * for custom controls and is not intended to be directly instantiated.
  *
- * @author Chris Gemignani
- * @author Sal Uryasev
+ * @author Jon Buffington
  */
-[Bindable]
-public class FlareVisBase extends UIComponent {
+public class FlareControlBase extends RendererBase {
 
 
   // Invoke the class constructor to initialize the CSS defaults.
   classConstructor();
-  
+
   private static function classConstructor():void {
-    CSSUtil.setDefaultsFor("org.juicekit.charts.FlareVisBase",
+	CSSUtil.setDefaultsFor("org.juicekit.visual.controls.FlareControlBase",
     { paddingLeft: 0
       , paddingRight: 0
       , paddingTop: 0
@@ -172,54 +120,37 @@ public class FlareVisBase extends UIComponent {
 
 
   /**
-   * Constructor
+   * Constructor.
    */
-  public function FlareVisBase() {
+  public function FlareControlBase() {
     super();
     addEventListener(ResizeEvent.RESIZE, onResize);
-    
-    ChangeWatcher.watch(this, 'baseOperators', createOperators);
-    ChangeWatcher.watch(this, 'extraOperators', createOperators);
-    ChangeWatcher.watch(this, 'baseControls', createControls);
-    ChangeWatcher.watch(this, 'extraControls', createControls);
-    
-    setDefaults();
-    
-    vis = makeVisualization();
-    if (vis) {
-      initVisualization();
-    }
-        
   }
 
- /**
-  * This function is meant to be overwritten by subclasses.
-  * It is to be used to set defaults for parameters.
-  */ 
-  protected function setDefaults():void {
-  }
-  
+
   /**
    * Stores reference to the prefuse.flare <code>Visualization</code> context.
    */
   public var vis:Visualization = null;
-  
+
+
   /**
    * @private
    */
   override protected function createChildren():void {
     super.createChildren();
 
-//    if (!vis) {
-//      vis = makeVisualization();
-//      if (vis) {
-//        initVisualization();
-     addChild(vis);
-//      }
-//    }
+    if (!vis) {
+      vis = makeVisualization();
+      if (vis) {
+        initVisualization();
+        addChild(vis);
+      }
+    }
   }
-  
-    /**
+
+
+  /**
    * Create a prefuse.flare <code>Visualization</code> instance.
    *
    * @return Returns a prefuse.flare <code>Visualization</code> instance.
@@ -355,6 +286,7 @@ public class FlareVisBase extends UIComponent {
    * @default NaN
    */
   [Inspectable(category="General")]
+  [Bindable]
   public function set transitionPeriod(seconds:Number):void {
     _transitionPeriod = seconds;
   }
@@ -383,8 +315,6 @@ public class FlareVisBase extends UIComponent {
   private function onEndTransition(event:TransitionEvent):void {
     dispatchEvent(new TransitionEvent(TransitionEvent.END, event.transition));
     event.transition.removeEventListener(TransitionEvent.END, onEndTransition);
-    // Force a flush of Flare's unrendered changes.
-    DirtySprite.renderDirty();
   }
 
   /**
@@ -396,10 +326,8 @@ public class FlareVisBase extends UIComponent {
    */
   protected function updateVisualization():void {
     if (vis && vis.data !== null && vis.data.length > 0) {
-      if (isNaN(transitionPeriod) || transitionPeriod <= 0) {
+      if (isNaN(transitionPeriod)) {
         vis.update();
-        // Force a flush of flare's unrendered changes.
-        DirtySprite.renderDirty();
       }
       else {
         const t:Transitioner = vis.update(transitionPeriod);
@@ -411,6 +339,9 @@ public class FlareVisBase extends UIComponent {
         }
         t.play();
       }
+
+      // Force a flush of flare's unrendered changes.
+      DirtySprite.renderDirty();
     }
   }
 
@@ -503,279 +434,6 @@ public class FlareVisBase extends UIComponent {
     if (vis && vis.data) {
       updateVisualization();
     }
-  }  
-
-  /**
-   * <p>Registers an <code>actionMap</code> object. This is a
-   * simple object containing a sequence of keys and values.
-   * The keys represent bindable public variables, and the values are
-   * actions to perform when the variable changes. Values can be
-   * strings or functions with signature <code>function(e:PropertyChangeEvent):void</code>
-   * or an Array of strings and functions.</p>
-   *
-   * <p>If the value is a string the property represented by the dotted string
-   * is changed to the new value of the key. For instance:<p>
-   *
-   * <pre>
-   * rev: 'vis.xyAxes.xReverse'
-   * </pre>
-   *
-   * <p>If public variable <code>rev</code> changes, the new value is set into
-   * <code>vis.xyAxes.xReverse</p>
-   *
-   * <p>If the value is a function, the function is passed the
-   * <code>PropertyChangeEvent</code> when the <code>key</code> changes.</p>
-   *
-   * <p>If the value is an Array, all of the elements of the Array are evaluated
-   * either as Strings or as functions.</p>
-   */
-  public function registerActions(actionMap:Object):void {
-    for (var k:String in actionMap) {
-      ChangeWatcher.watch(this, k, applyPropertyChange);
-      registeredActionMap[k] = actionMap[k];
-    }
   }
-
-  /**
-   * A proxy for Flare properties. The key is the
-   * local property that may change. The value is either
-   * a property that the new value should be assigned to,
-   * or a function that will receive the PropertyChangeEvent.
-   */
-  private var registeredActionMap:Object = {}
-
-
-  /**
-   * A list of deferred property changes.
-   *
-   * These will be applied when data is set on the visualization.
-   */
-  private var propertyChangeQueue:Array = [];
-
-
-  /**
-   * Apply all the property changes in <code>propertyChangeQueue</code>.
-   */
-  private function clearPropertyChangeQueue():void {
-    var _queue:Array = propertyChangeQueue.slice();
-    propertyChangeQueue = [];
-    for each (var e:PropertyChangeEvent in _queue) {
-      applyPropertyChange(e);
-    }
-  }
-
-
-  /**
-   * Evaluated if any of the keys in <code>actionMap</code>
-   * change.
-   *
-   * @param e a PropertyChangeEvent, ChangeWatchers are set up
-   * by registerActions
-   *
-   * @private
-   */
-  private function applyPropertyChange(e:PropertyChangeEvent):void {
-    function handleAction(source:*, a:*, e:PropertyChangeEvent):void {
-      if (a is String) {
-        try {
-          var s:String = a as String;
-          var dataProp:Boolean = false;
-
-          // if the property is preceded by
-          // @, we are setting a reference to one of the
-          // data fields.
-          if (s.charAt(0) == '@') {
-            s = s.substr(1);
-            dataProp = true;
-          }
-
-          var newVal:* = e.newValue;
-
-          // TODO: this appears to be broken.
-		  // Test if fixed with Property bugfix.
-          if (dataProp) {
-            // make sure the new value is preceeded by 'data.'
-            if (newVal.toString().substr(0, 5) != 'data.') {
-              newVal = asFlareProperty(newVal.toString());
-            }
-          }
-          Property.$(s).setValue(source, newVal);
-        } catch (e:Error) {
-          trace('Error in setting property change in FlareVisBase');
-        }
-      } else if (a is Function) {
-        a(e);
-      }
-    }
-
-    var prop:Object = e.property;
-    if (vis == null || vis.data == null) {
-      // store the property change to be applied later
-      // when the visualization exists and has data
-      propertyChangeQueue.push(e.clone());
-    } else {
-      clearPropertyChangeQueue();
-      if (registeredActionMap.hasOwnProperty(prop)) {
-        var action:* = registeredActionMap[prop];
-        if (action is Array) {
-          for each (var itm:* in action) {
-            handleAction(this, itm, e);
-          }
-        } else {
-          handleAction(this, action, e);
-        }
-      }
-      invalidateProperties();
-    }
-  }
-
-
-  override protected function commitProperties():void {
-    super.commitProperties();
-    updateVisualization();
-  }
-
-
-  /**
-   * <p>Add operators to <code>vis.operators</code>.</p>
-   *
-   * <p>The creation of <code>vis.operators</code> is <i>deferred</i>
-   * until data is assigned to the visualization. This avoids problems
-   * with scale bindings in the Flare framework.</p>
-   *
-   * <p>Subclasses should place the base operators needed for
-   * the visualization in <code>baseOperators</code>.</p>
-   */
-  protected function createOperators(e:* = null):void {
-    vis.operators.clear();
-    var op:Operator;
-    for each (op in baseOperators.source) {
-      vis.operators.add(op);
-    }
-    for each (op in extraOperators.source) {
-      vis.operators.add(op);
-    }
-    invalidateProperties();
-  }
-
-  /**
-   * <p>Add com.ingenix.trendview.controls to <code>vis.com.ingenix.trendview.controls</code>.</p>
-   *
-   * <p>The creation of <code>vis.com.ingenix.trendview.controls</code> is <i>deferred</i>
-   * until data is assigned to the visualization.</p>
-   *
-   * <p>Subclasses should place all base com.ingenix.trendview.controls needed for the
-   * visualization in <code>baseControls</code>.</p>
-   */
-  protected function createControls(e:* = null):void {
-    vis.controls.clear();
-    var ctrl:Control;
-    for each (ctrl in baseControls.source) {
-      vis.controls.add(ctrl);
-    }
-    for each (ctrl in extraControls.source) {
-      vis.controls.add(ctrl);
-    }
-    invalidateProperties();
-  }
-
-  /**
-   * Operators that are used in every visualization
-   */
-  protected var baseOperators:ArrayCollection = new ArrayCollection([]);
-
-  /**
-   * Operators that are added by the user of the visualization.
-   */
-  public var extraOperators:ArrayCollection = new ArrayCollection([]);
-
-  /**
-   * Controls that are used in every visualization.
-   */
-  protected var baseControls:ArrayCollection = new ArrayCollection([]);
-
-  /**
-   * Controls that are added by the user of the visualization.
-   */
-  public var extraControls:ArrayCollection = new ArrayCollection([]);
-
-
-  /**
-   * Update the visualization.  This event may be called manually, or by
-   * an event on <code>vis.data</code>
-   */ 
-  public function updateData(event:DataEvent = null):void {
-    styleVis();
-    styleNodes();
-    styleEdges();
-    invalidateProperties();
-    dispatchEvent(new Event("dataUpdate"));
-  }
-
-  /**
-   * dataProvider takes a DataArrayCollection (preferred), ArrayCollection,
-   * or Data object and passes it to the underlying Flare visualization object.
-   */
-  public function set dataProvider(value:Object):void {
-    if (value != null) {
-      var newValue:Data;
-      
-      if (value is Data) {
-        newValue = value as Data;
-      }
-      else if (value is ArrayCollection && (value as ArrayCollection).length > 0) {
-        newValue = Data.fromArray(value.source);
-      }
-      else return;
-    }
-    
-    if (newValue !== vis.data) {
-      var dataFirstLoad:Boolean = vis.data==null ? true : false;
-      
-      if (vis.data != null) vis.data.removeEventListener(DataEvent.UPDATE, updateData);
-      newValue.addEventListener(DataEvent.UPDATE, updateData);
-      vis.data = newValue;
-
-      if (dataFirstLoad) {
-        createOperators();
-        createControls();
-      }
-      styleNodes();
-      styleEdges();
-      styleVis();
-
-      // Apply any cached, data bound changes
-      clearPropertyChangeQueue();
-      invalidateProperties();
-    }
-  }
-
-  /**
-   * A hook to set properties for nodes <b>after</b> new data is assigned.
-   *
-   * <p>Subclasses should override this.</p>
-   */
-  protected function styleNodes():void {
-  }
-
-
-  /**
-   * A hook to set properties for edges <b>after</b> new data is assigned.
-   * 
-   * <p>Subclasses should override this.</p>
-   */
-  protected function styleEdges():void {
-  }
-
-
-  /**
-   * A hook to set properties for visualization <b>after</b> new data is assigned and
-   * operators are created. 
-   * 
-   * <p>Subclassess should override this.</p>
-   */
-  protected function styleVis():void {
-  }
-
 }
 }
